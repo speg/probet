@@ -1,33 +1,43 @@
-#!/usr/bin/env python
-#
-# Copyright 2007 Google Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-from google.appengine.ext import webapp
-from google.appengine.ext.webapp import util
+import cgi
+import datetime
+import webapp2
+import jinja2
+import os
+import urllib2
+import bs4
+from bs4 import BeautifulSoup
+
+from google.appengine.api import urlfetch
 
 
-class MainHandler(webapp.RequestHandler):
+
+jinja_environment = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)))
+
+class MainPage(webapp2.RequestHandler):
     def get(self):
-        self.response.out.write('Hello world!')
+        template = jinja_environment.get_template('index.html')
+        template_values = {'one':1}
+        self.response.out.write(template.render(template_values))
 
 
-def main():
-    application = webapp.WSGIApplication([('/', MainHandler)],
-                                         debug=True)
-    util.run_wsgi_app(application)
+class GetStandings(webapp2.RequestHandler):
 
+    def get(self):
+        #self.response.headers['Content-Type'] = 'text/plain'
+        #self.response.out.write('Hello, webapp World!')
+        url = "http://www.nhl.com/ice/m_standings.htm"
+        #url = 'http://www.speg.com'
 
-if __name__ == '__main__':
-    main()
+        url = "http://www.google.com/"
+        result = urlfetch.fetch(url)
+        if result.status_code == 200:
+            self.ParseResult(result.content)
+
+    def ParseResult(self, x):
+        #soup = BeautifulSoup(x.read())
+        #print soup.prettify()
+        print x
+
+app = webapp2.WSGIApplication([('/', MainPage),('/standings', GetStandings)],
+                              debug=True)
