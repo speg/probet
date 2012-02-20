@@ -2,7 +2,7 @@ from bs4 import BeautifulSoup
 import urllib2
 import urllib
 from bs4.element import NavigableString
-
+import math
 
 def getTeams(debug=False, save=False):
     #get standings and return soup
@@ -86,14 +86,14 @@ class Team(object):
     def __init__(self,data):
         #initialize team from table data
         self.name = data[1].text
-        self.place = int(data[0].text)
-        self.games = int(data[2].text)
-        self.wins = int(data[3].text)
-        self.losses = int(data[4].text)
-        self.overtime = int(data[5].text)
-        self.points = int(data[6].text)
-        self.goals_for = (data[7].text)
-        self.goal_against = (data[8].text)
+        self.place = float(data[0].text)
+        self.games = float(data[2].text)
+        self.wins = float(data[3].text)
+        self.losses = float(data[4].text)
+        self.overtime = float(data[5].text)
+        self.points = float(data[6].text)
+        self.goals_for = float(data[7].text)
+        self.goals_against = float(data[8].text)
         self.home = data[9].text
         self.away = data[10].text
         self.last = data[11].text
@@ -107,11 +107,48 @@ def parseStandings(soup):
     teams = {}
     rows = soup.table.find_all('tr')
 
-
     for row in rows[2:]: #thanks tsn for no tablebody!
-        tds = [i for i in row.children]       
+        tds = [i for i in row.children]
+
         if len(tds) > 2:
             teams[translate(tds[1].text)] = Team(tds)
+        
+    average_goals = 0.0
+    average_allowed = 0.0
+    average_points = 0.0
+    games_played = 0.0
+
+    for team in teams.values():
+        average_points += team.points
+        average_goals += team.goals_for
+        average_allowed += team.goals_against
+        games_played += team.games
+
+    
+    average_goals = average_goals
+    average_points = average_points
+    average_allowed = average_allowed
+
+    stddev_goals = 0.0
+    stddev_points = 0.0
+    stddev_allowed = 0.0
+
+    for team in teams.values():
+        stddev_goals += math.pow(team.goals_for - average_goals,2)
+        stddev_points += math.pow(team.points - average_points, 2)
+        stddev_allowed += math.pow(team.goals_against - average_allowed, 2)
+
+    stddev_goals = math.sqrt(stddev_goals/average_goals)
+    stddev_points = math.sqrt(stddev_points/average_points)
+    stddev_allowed = math.sqrt(stddev_allowed/average_allowed)
+
+    teams['stats']={'avg_goals':average_goals/games_played,
+                    'avg_points':average_points/games_played,
+                    'avg_allowed':average_allowed/games_played,
+                    'std_goals':stddev_goals/games_played,
+                    'std_allowed':stddev_allowed/games_played,
+                    'stddev_points':stddev_points/games_played,
+                    }
 
     return teams
 
@@ -189,28 +226,26 @@ class Wager(object):
         self.plus = self.determinePlus(self.favourite, self.dog)
 
     def __repr__(self):
-        return '%s is %s points ahead of %s and is favoured by %s' % (self.favourite.name, self.point_spread, self.dog.name, self.odd_spread)
+        return '%s is %s points ahead of %s and is favoured by %s %s' % (self.favourite.name, int(self.point_spread), self.dog.name, self.odd_spread, '+' if self.plus else '')
 
     def determinePlus(self,fav,dog):
         #this is an attempt to determine if you should bet > +1
-        if self.favourite = teams[self.visitor]:
+        if self.favourite == teams[self.visitor]:
             base = self.v
             plus = self.v_plus
         else:
             base = self.h
             plus = self.h_plus
 
-        fav_goals = fav.goals_for
-        fav_against = fav.goal_against
-        dog_goals = dog.goals_for
-        dog_against = dog.goal_against
-
         #determine if fav can score lots
+        if fav.goals_for/fav.games < teams['stats']['avg_goals'] + teams['stats']['std_goals']*2:
+            return False
 
         #determine if dog lets in a lot
+        if dog.goals_against/dog.games < teams['stats']['avg_allowed'] + teams['stats']['std_allowed']*2:
+            return False
 
-
-
+        return True
 
 DEBUG = True    #debug reads local files
 SAVE = False    #save writes local files
