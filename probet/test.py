@@ -47,36 +47,80 @@ def getOdds(debug=False, save=False):
 
 
 
+
+
+def translate(x):
+    #translate proline abreviations to NHL ones.
+    t = {   'Los Angeles':'LA',
+            'Columbus':'CLB',
+            'Tampa Bay':'TB',
+            'Washington':'WAS',
+            'San Jose':'SJ',
+            'Nashville':'NAS',
+            'New Jersey':'NJ',
+            'Detroit':'DET',
+            'Vancouver':'VAN',
+            'NY Rangers':'NYR',
+            'St. Louis':'STL',
+            'Boston':'BOS',
+            'Philadelphia':'PHI',
+            'Pittsburgh':'PIT',
+            'Chicago':'CHI',
+            'Ottawa':'OTT',
+            'Phoenix':'PHX',
+            'Florida':'FLA',
+            'Calgary':'CGY',
+            'Toronto':'TOR',
+            'Dallas':'DAL',
+            'Colorado':'COL',
+            'Winnipeg':'WPG',
+            'Minnesota':'MIN',
+            'Anaheim': 'ANA',
+            'NY Islanders':'NYI',
+            'Montreal':'MTL',
+            'Buffalo':'BUF',
+            'Carolina':'CAR',
+            'Edmonton':'EDM'
+    }
+
+    return t.get(x,x)
+
+class Team(object):
+
+
+    def __init__(self,data):
+        #initialize team from table data
+        self.name = data[1].text
+        self.place = int(data[0].text)
+        self.games = int(data[2].text)
+        self.wins = int(data[3].text)
+        self.losses = int(data[4].text)
+        self.overtime = int(data[5].text)
+        self.points = int(data[6].text)
+        self.goals_for = (data[7].text)
+        self.goal_against = (data[8].text)
+        self.home = data[9].text
+        self.away = data[10].text
+        self.last = data[11].text
+        self.streak = data[12].text
+
+    def __repr__(self):
+        return '%s (%s)' % (self.name, self.place)
+
+
+
+
 def parseStandings(soup):
     table = soup.find_all('table')
     teams = {}
 
-    for i in table[1].children:
-        tds = i.find_all('td')
-        #print tds[1].text.strip(), tds[6].text.strip()
-        try:
-            pts = int(tds[6].text.strip())
-        except:
-            pts = None
-
-        teams[tds[1].text.strip()] = {'pts': pts}
+    rows = soup.table.find_all('tr')
+    for row in rows[2:]: #thanks tsn for no tablebody!
+        tds = [i for i in row.children]       
+        if len(tds) > 2:
+            teams[translate(tds[1].text)] = Team(tds)
 
     return teams
-
-def translate(x):
-    #translate proline abreviations to NHL ones.
-    t = {   'LA':'LAK',
-            'CLB':'CBJ',
-            'TB':'TBL',
-            'WAS':'WSH',
-            'SJ':'SJS',
-            'NAS':'NSH',
-            'NJ':'NJD'
-    }
-
-    if x in t: x = t[x]
-
-    return x
 
 def parseOdds(soup):
     table = soup.find_all('table')
@@ -115,7 +159,15 @@ def printOdds(odds):
     for i in odds:
         print '%s\t%s\t%s\t%s\t%s\t%s' % tuple(i)
 
+def printTeams(teams):
+    print '#### Teams ####'
+    standings = []
 
+    for k,v in teams.items():
+        standings.append('%s. %s' % (v.place,v.name))
+    
+    for x in sorted(standings): #not really sorted
+        print x
 
 DEBUG = True    #debug reads local files
 SAVE = False    #save writes local files
@@ -124,8 +176,8 @@ odds = parseOdds(getOdds(save=SAVE, debug=DEBUG))
 teams = parseStandings(getTeams(save=SAVE, debug=DEBUG))
 
 
-printOdds(odds)
-
+#printOdds(odds)
+#printTeams(teams)
 
 favs = []
 #for each game, find favourite:
@@ -147,7 +199,7 @@ favs.sort(key=lambda x: x[2],reverse=True)
 for game in favs:
     #determine difference in standings of the two teams:
 
-    pd = teams[game[0]].get('pts') - teams[game[1]].get('pts')
+    pd = teams[game[0]].points - teams[game[1]].points
     print '%s leads %s by %s (%s)' % (game[0], game[1], pd,round(game[2],2))
 
 
