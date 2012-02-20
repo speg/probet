@@ -10,7 +10,7 @@ def getTeams(debug=False, save=False):
     if debug:
         html = open('teams.html').read()
     else:
-        url = "http://www.nhl.com/ice/m_standings.htm?type=LEA&season=20112012"
+        url = "http://www.tsn.ca/nhl/standings/?show=league"
         result = urllib2.urlopen(url)
         html = result.read()
 
@@ -44,10 +44,6 @@ def getOdds(debug=False, save=False):
         f.close()
 
     return BeautifulSoup(html)
-
-
-
-
 
 def translate(x):
     #translate proline abreviations to NHL ones.
@@ -87,7 +83,6 @@ def translate(x):
 
 class Team(object):
 
-
     def __init__(self,data):
         #initialize team from table data
         self.name = data[1].text
@@ -107,14 +102,12 @@ class Team(object):
     def __repr__(self):
         return '%s (%s)' % (self.name, self.place)
 
-
-
-
 def parseStandings(soup):
     table = soup.find_all('table')
     teams = {}
-
     rows = soup.table.find_all('tr')
+
+
     for row in rows[2:]: #thanks tsn for no tablebody!
         tds = [i for i in row.children]       
         if len(tds) > 2:
@@ -131,23 +124,21 @@ def parseOdds(soup):
         else:
             tds = i.find_all('td')
             if len(tds) > 5:
-                #first row had few items
-                #print tds[4].text.strip(), tds[5].text.strip(), tds[9].text.strip()
-                odds = []
-                for j, td in enumerate(tds):
-                    s = td.stripped_strings
-                    bj = []
-                    for l in s:
-                        bj.append(l)
-                    if len(bj) > 1:
-                        odds.append(bj[1])
-                    elif len(bj) == 1:
-                        odds.append(bj[0])
-                ODDS.append([translate(odds[4]), translate(odds[6]), float(odds[8]), float(odds[10]),float(odds[7]),float(odds[11])])
+                #first row had few items     
+                row = [i.stripped_strings for i in tds]   #whole row stripped
+                clean = []
+                for i in row:
+                        strings = []
+                        for s in i:
+                            strings.append(s)
 
-            # for j, td in enumerate(tds):
-            #     print '*',i, td.text.strip()
-            #print tds[8].text.strip()
+                        if len(strings) > 1:
+                            clean.append(strings[1])
+                        elif len(strings) == 1:
+                            clean.append(strings[0])
+
+                ODDS.append(clean)
+
     return ODDS
 
 def printOdds(odds):
@@ -164,10 +155,62 @@ def printTeams(teams):
     standings = []
 
     for k,v in teams.items():
-        standings.append('%s. %s' % (v.place,v.name))
+        standings.append('%s. %s (%s)' % (v.place, v.name))
     
     for x in sorted(standings): #not really sorted
         print x
+
+class Wager(object):
+    def __init__(self,data):
+        self.time = data[2]
+        #self.sport = data[3]
+        self.visitor = data[4]
+        self.home = data[6]
+        self.v_plus = float(data[7])
+        self.v = float(data[8])
+        self.tie = float(data[9])
+        self.h = float(data[10])
+        self.h_plus = float(data[11])
+        self.over = float(data[12])
+        self.over_under = float(data[13])
+        self.under = float(data[14])
+
+        #determine favourite and underdog:
+        if self.h > self.v:
+            self.favourite = teams[self.visitor]
+            self.dog = teams[self.home]
+        else:
+            self.favourite = teams[self.home]
+            self.dog = teams[self.visitor]
+
+        self.odd_spread = abs(self.h - self.v)
+        self.point_spread =  self.favourite.points - self.dog.points
+
+        self.plus = self.determinePlus(self.favourite, self.dog)
+
+    def __repr__(self):
+        return '%s is %s points ahead of %s and is favoured by %s' % (self.favourite.name, self.point_spread, self.dog.name, self.odd_spread)
+
+    def determinePlus(self,fav,dog):
+        #this is an attempt to determine if you should bet > +1
+        if self.favourite = teams[self.visitor]:
+            base = self.v
+            plus = self.v_plus
+        else:
+            base = self.h
+            plus = self.h_plus
+
+        fav_goals = fav.goals_for
+        fav_against = fav.goal_against
+        dog_goals = dog.goals_for
+        dog_against = dog.goal_against
+
+        #determine if fav can score lots
+
+        #determine if dog lets in a lot
+
+
+
 
 DEBUG = True    #debug reads local files
 SAVE = False    #save writes local files
@@ -179,27 +222,16 @@ teams = parseStandings(getTeams(save=SAVE, debug=DEBUG))
 #printOdds(odds)
 #printTeams(teams)
 
-favs = []
-#for each game, find favourite:
+
+
+wagers = []
+
 for game in odds:
-    if game[2] < game[3]:
-        fav = game[0]
-        dog = game[1]
-    else:
-        fav = game[1]
-        dog = game[0]
-    favs.append([fav, dog, abs(game[3]-game[2])])
-    #the higher the differece, the more heavily favourited
+    wagers.append(Wager(game))
 
-favs.sort(key=lambda x: x[2],reverse=True)
+wagers.sort(key=lambda x: x.odd_spread,reverse=True)
 
-
-
-
-for game in favs:
-    #determine difference in standings of the two teams:
-
-    pd = teams[game[0]].points - teams[game[1]].points
-    print '%s leads %s by %s (%s)' % (game[0], game[1], pd,round(game[2],2))
+for wager in wagers:
+    print wager
 
 
