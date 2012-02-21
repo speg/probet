@@ -7,6 +7,7 @@ import urllib2
 import bs4
 from bs4 import BeautifulSoup
 from google.appengine.api import urlfetch
+from probet import Probet
 
 jinja_environment = jinja2.Environment(
     loader=jinja2.FileSystemLoader(os.path.dirname(__file__)))
@@ -38,6 +39,19 @@ class GetStandings(webapp2.RequestHandler):
         
         self.response.out.write(template.render(template_values))
 
+class TodaysBets(webapp2.RequestHandler):
+    def get(self):
 
-app = webapp2.WSGIApplication([('/', MainPage),('/standings', GetStandings)],
-                              debug=True)
+        probet = Probet()
+
+        template = jinja_environment.get_template('bets.html')
+        template_values = {'bets':probet.getWagers()}        
+        self.response.out.write(template.render(template_values))
+
+
+
+app = webapp2.WSGIApplication([ ('/', MainPage),
+                                ('/standings', GetStandings), 
+                                ('/bets',TodaysBets)
+                            ], 
+                            debug=True)
