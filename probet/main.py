@@ -14,8 +14,9 @@ jinja_environment = jinja2.Environment(
 
 class MainPage(webapp2.RequestHandler):
     def get(self):
+        probet = Probet()
         template = jinja_environment.get_template('index.html')
-        template_values = {'one':1}
+        template_values = {'odds': probet.getWagers()}
         self.response.out.write(template.render(template_values))
 
 

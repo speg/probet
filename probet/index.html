@@ -2,11 +2,42 @@
 <html>
 <head>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>probet</title>
 <link rel="stylesheet" href="/static/style.css" type="text/css" />
 
 </head>
 <body>
-    Hello there, {{ one }}.
+<div class="container">
+<div class="row">
+<div class="span2">&nbsp;</div>
+<div class="span8">
+    <div class="hero-unit">
+    <h1>Probet<small>&nbsp;winning one game at a time</small></h1>
+    </div>
+</div>
+<div class="span2"></div>
+
+<div class="row">
+<div class="span3">&nbsp;</div>
+<div class="span6">
+<table class="table table-bordered">
+    <thead><th>Favourite</th><th>Underdog</th><th>Point Spread</th><th>Odd</th><th>Beat the Spread?</th></thead>
+    <tbody>
+{% for i in odds %}
+    <tr>
+        {% for j in i %}
+        <td>{{ j }}</td>
+        {% endfor %}
+    </tr>
+
+{% endfor %}
+</tbody>
+</table>
+</div>
+<div class="span3"></div>
+</div>
+</div>
+
 </body>
 </html>
