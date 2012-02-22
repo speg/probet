@@ -303,8 +303,8 @@ class Probet(object):
 
         self.wagers.sort(key=lambda x: x.odd_spread,reverse=True)
 
-    def getWagers(self):
-        return [[wager.favourite.nick, wager.dog.nick, int(wager.point_spread),wager.odd_spread, wager.plus] for wager in self.wagers]
-    
+    def getWagers(self, top=None):
+        return [[wager.favourite.nick, wager.dog.nick, int(wager.point_spread),wager.odd_spread, wager.plus] for wager in self.wagers[:top]]
+
 
 

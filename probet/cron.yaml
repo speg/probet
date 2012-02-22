@@ -1,0 +1,5 @@
+cron:
+- description: daily email
+  url: /email
+  schedule: every day 06:55
+  timezone: America/Montreal

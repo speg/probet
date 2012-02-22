@@ -6,7 +6,7 @@ import os
 import urllib2
 import bs4
 from bs4 import BeautifulSoup
-from google.appengine.api import urlfetch
+from google.appengine.api import urlfetch, mail
 from probet import Probet
 
 jinja_environment = jinja2.Environment(
@@ -49,10 +49,34 @@ class TodaysBets(webapp2.RequestHandler):
         template_values = {'bets':probet.getWagers()}        
         self.response.out.write(template.render(template_values))
 
+class EmailBets(webapp2.RequestHandler):
+    def get(self):
+        probet = Probet()
+        bets = probet.getWagers(top=3)
+        mail.send_mail(sender="Probet <stevehiemstra@gmail.com>",
+              to="Steve <steve@speg.com>",
+              subject="Action",
+              body="""
+Dear Steve:
+
+We've got some bets on the table for you!
+
+%s
+%s
+%s
+
+Good luck!
+        """ % tuple([self.format(x) for x in bets]))
+
+        return True
+
+    def format(self,x):
+        return '%s over %s | %s (%s)%s' % (x[0],x[1],x[2],x[3],' +' if x[4] else '')
+
 
 
 app = webapp2.WSGIApplication([ ('/', MainPage),
                                 ('/standings', GetStandings), 
-                                ('/bets',TodaysBets)
+                                ('/email',EmailBets)
                             ], 
                             debug=True)
