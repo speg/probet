@@ -8,42 +8,31 @@ from google.appengine.api import memcache
 import re
 
 def getTeams(debug=False, save=False):
-    #get standings and return soup
+    #get standings and return soup    
     
-    html = memcache.get('teams')
-
-    if not html or html == '':
-        url = "http://www.tsn.ca/nhl/standings/?show=league"
-        result = urllib2.urlopen(url)
-        html = result.read()
-        memcache.set('teams',html, 60*60*8)
+    url = "http://www.tsn.ca/nhl/standings/?show=league"
+    result = urllib2.urlopen(url)
+    html = result.read()        
 
     return BeautifulSoup(html)
 
 def getOdds(debug=False, save=False):
     #get odds and return soup
     
-    html = memcache.get('odds')
+    url = 'http://proline.olg.ca/prolineEvents.do'
+    form = {'selectedSportId':'HKY',
+        'selectedTimeTab':'thisWeek',
+        'language':'',
+        'wagerSelect':'2'
+        }
+    data = urllib.urlencode(form)
+    req = urllib2.Request(url, data)
+    response = urllib2.urlopen(req)
+    #parse error in html file so need to hack this up.
+    #manually extract tables.
+    #response = open('odds.html')
+    html = parseProline(response)
 
-    if not html or html == '':
-        print 'scraping'
-        url = 'http://proline.olg.ca/prolineEvents.do'
-        form = {'selectedSportId':'HKY',
-            'selectedTimeTab':'thisWeek',
-            'language':'',
-            'wagerSelect':'2'
-            }
-        data = urllib.urlencode(form)
-        req = urllib2.Request(url, data)
-        response = urllib2.urlopen(req)
-        #parse error in html file so need to hack this up.
-        #manually extract tables.
-        #response = open('odds.html')
-        html = parseProline(response)
-        print 'html',html
-        memcache.set('odds', html, 60*60*8)
-
-    print 'returning', html
     return BeautifulSoup(html)
 
 def parseProline(response):
@@ -124,6 +113,7 @@ class Team(object):
         self.away = data[10].string
         self.last = data[11].string
         self.streak = data[12].string
+        self.nick = translate(self.name)
 
     def __repr__(self):
         return '%s (%s)' % (self.name, self.place)
@@ -174,21 +164,19 @@ def parseStandings(soup):
                     'std_allowed':stddev_allowed/games_played,
                     'stddev_points':stddev_points/games_played,
                     }
-
+    memcache.set('teams',teams, 60*60*6)    
     return teams
 
 def parseOdds(soup):
     table = soup.findAll('tr')
     ODDS = []
     
-    print 'table', table, soup
 
     for i in table:
         if isinstance(i, NavigableString):
             print 'S'
         else:
             tds = i.findAll('td')
-            print tds
             if len(tds) > 5:
                 #first row had few items     
                 #row = [i.contents for i in tds]   #whole row stripped
@@ -222,6 +210,7 @@ def parseOdds(soup):
                 # print '*'+clean
                 
                 ODDS.append(clean)
+    memcache.set('odds',ODDS,60*60*6)
     return ODDS
 
 def printOdds(odds):
@@ -301,12 +290,13 @@ class Wager(object):
 class Probet(object):
     def __init__(self):
         #set up the probet instance
-        self.odds = parseOdds(getOdds())
-        self.teams = parseStandings(getTeams())
+        self.odds = memcache.get('odds')
+        if not self.odds: self.odds = parseOdds(getOdds())
+
+        self.teams = memcache.get('teams')
+        if not self.teams: self.teams = parseStandings(getTeams())
+       
         self.wagers = []
-        print 'WWEWH'
-        print self.odds
-        print self.teams
 
         for game in self.odds:
             self.wagers.append(Wager(game, self))
@@ -314,6 +304,6 @@ class Probet(object):
         self.wagers.sort(key=lambda x: x.odd_spread,reverse=True)
 
     def getWagers(self):
-        return self.wagers
+        return [[wager.favourite.nick,wager.dog.nick,wager.point_spread,wager.odd_spread,wager.plus] for wager in self.wagers]
 
 

@@ -1,8 +1,11 @@
 <h2>Bets</h2>
 <table>
 {% for i in bets %}
-
-    <tr><td>{{ i }}</td></tr>
+    <tr>
+        {% for j in i %}
+        <td>{{ j }}</td>
+        {% endfor %}
+    </tr>
 
 {% endfor %}
 </table>
