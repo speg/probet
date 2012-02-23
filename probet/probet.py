@@ -118,6 +118,18 @@ class Team(object):
     def __repr__(self):
         return '%s (%s)' % (self.name, self.place)
 
+    def setStatus(self, stats):
+        if self.goals_for/self.games > stats['avg_goals']:
+            #print self.goals_for/self.games, stats['avg_goals']
+            self.scorer = True
+        else:
+            self.scorer = False
+
+        if self.goals_against/self.games > stats['avg_goals']:
+            self.loose = True
+        else:
+            self.loose = False
+
 def parseStandings(soup):
     table = soup.findAll('table')
     teams = {}
@@ -164,6 +176,11 @@ def parseStandings(soup):
                     'std_allowed':stddev_allowed/games_played,
                     'stddev_points':stddev_points/games_played,
                     }
+
+    for k,v in teams.items():
+        if isinstance(v, Team):
+            v.setStatus(teams['stats'])
+
     memcache.set('teams',teams, 60*60*6)    
     return teams
 
@@ -234,6 +251,7 @@ def printTeams(teams):
 
 class Wager(object):
     def __init__(self,data, bettor):
+        self.game = data[0]
         self.time = data[1]
         #self.sport = data[2]
         self.visitor = data[3]
@@ -262,9 +280,45 @@ class Wager(object):
         self.point_spread =  self.favourite.points - self.dog.points
 
         self.plus = self.determinePlus(self.favourite, self.dog)
+        self.bet_over_under = self.determineOverUnder()
 
     def __repr__(self):
         return '%s is %s points ahead of %s and is favoured by %s %s' % (self.favourite.name, int(self.point_spread), self.dog.name, self.odd_spread, '+' if self.plus else '')
+
+    def determineOverUnder(self):
+        # 16 cases:
+        # S = high scorer
+        # s = low scorer
+        # A = allows alot
+        # a = allows little
+
+        # fav    SA    Sa    sa    sA
+        # dog    SA    Sa    sa    sA
+        # O/U     O     -     U     -
+
+        # fav    SA    Sa    sa    sA
+        # dog    sA    SA    Sa    sa    
+        # O/U     O     O     U     U
+
+        # fav    SA    Sa    sa    sA
+        # dog    sa    sA    SA    Sa       
+        # O/U     -     O     -     U
+
+        # fav    SA    Sa    sa    sA
+        # dog    Sa    sa    sA    SA       
+        # O/U     -     U     -     O 
+
+        if self.favourite.scorer and self.dog.loose:
+            return 1
+
+        if not self.dog.loose and not self.favourite.scorer:
+            return -1
+
+        if not self.favourite.scorer and self.favourite.loose and self.dog.scorer and self.dog.loose:
+            return 1
+
+        return 0
+
 
     def determinePlus(self,fav,dog):
         #this is an attempt to determine if you should bet > +1
@@ -276,6 +330,11 @@ class Wager(object):
         else:
             base = self.h
             plus = self.h_plus
+
+        if self.favourite.scorer and not self.favourite.loose and self.dog.loose:
+            #works if dog is a scorer or not, risky?
+            return True
+
 
         #determine if fav can score lots
         if fav.goals_for/fav.games < teams['stats']['avg_goals'] + teams['stats']['std_goals']*2:
@@ -290,21 +349,59 @@ class Wager(object):
 class Probet(object):
     def __init__(self):
         #set up the probet instance
-        self.odds = memcache.get('odds')
-        if not self.odds: self.odds = parseOdds(getOdds())
+        self.wagers = memcache.get('wagers')
 
-        self.teams = memcache.get('teams')
-        if not self.teams: self.teams = parseStandings(getTeams())
-       
-        self.wagers = []
+        if not self.wagers:
 
-        for game in self.odds:
-            self.wagers.append(Wager(game, self))
+            self.odds = memcache.get('odds')
+            if not self.odds: self.odds = parseOdds(getOdds())
 
-        self.wagers.sort(key=lambda x: x.odd_spread,reverse=True)
+            self.teams = memcache.get('teams')
+            if not self.teams: self.teams = parseStandings(getTeams())
+           
+            self.wagers = []
 
-    def getWagers(self, top=None):
-        return [[wager.favourite.nick, wager.dog.nick, int(wager.point_spread),wager.odd_spread, wager.plus] for wager in self.wagers[:top]]
+            for game in self.odds:
+                self.wagers.append(Wager(game, self))
+
+            self.wagers.sort(cmp=self.sortWagers)
+            memcache.set('wagers', self.wagers, 60*60*6)
+
+    def getTeams(self):
+        if not hasattr(self,'teams'):
+            self.teams = parseStandings(getTeams())
+        return self.teams
+
+    def getWagers(self, top=None, risk=0):
+        #top: number of wagers to get
+        #risk: level of risk willing to take
+
+        return [[wager.favourite.nick, wager.dog.nick, int(wager.point_spread),wager.odd_spread, wager.plus, wager.bet_over_under] for wager in self.wagers[:top] if self.risk(wager,risk)]
+
+    def risk(self,wager,risk):
+        if risk == 0:
+            #conservative, safe, obvious
+            if wager.odd_spread >= 1.0 and wager.point_spread >= 10:
+                return True
+        elif risk == 1:
+            #still cautious
+            if wager.odd_spread >= 0.5 and wager.point_spread > 5:
+                return True
+
+        elif risk == 5:
+            #everything
+            return True
+
+        return False
+
+    def sortWagers(self,x,y):
+        #sort wagers by difference in odds, then by difference in standings
+        if x.odd_spread < y.odd_spread:
+            return 1
+        elif y.odd_spread < x.odd_spread:
+            return -1
+        else:
+            return int(y.point_spread - x.point_spread)
 
 
 

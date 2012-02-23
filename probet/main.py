@@ -16,7 +16,7 @@ class MainPage(webapp2.RequestHandler):
     def get(self):
         probet = Probet()
         template = jinja_environment.get_template('index.html')
-        template_values = {'odds': probet.getWagers()}
+        template_values = {'odds': probet.getWagers(3,1)}
         self.response.out.write(template.render(template_values))
 
 
@@ -46,20 +46,27 @@ class TodaysBets(webapp2.RequestHandler):
         probet = Probet()
 
         template = jinja_environment.get_template('bets.html')
-        template_values = {'bets':probet.getWagers()}        
+        template_values = {'odds':probet.getWagers(risk=5),
+                            'teams':probet.getTeams()}        
         self.response.out.write(template.render(template_values))
+
+class ViewAll(webapp2.RequestHandler):
+    def get(self):
+        probet = Probet()
+        bets = probet.getWagers(risk=5)
 
 class EmailBets(webapp2.RequestHandler):
     def get(self):
         probet = Probet()
         bets = probet.getWagers(top=3)
-        mail.send_mail(sender="Probet <stevehiemstra@gmail.com>",
+        if len(bets) > 2:
+            mail.send_mail(sender="Probet <stevehiemstra@gmail.com>",
               to="Steve <steve@speg.com>",
-              subject="Action",
+              subject="Today's Picks",
               body="""
-Dear Steve:
+Good monring Steve!
 
-We've got some bets on the table for you!
+We've got some picks for you today!
 
 %s
 %s
@@ -68,15 +75,16 @@ We've got some bets on the table for you!
 Good luck!
         """ % tuple([self.format(x) for x in bets]))
 
-        return True
+        self.response.out.write('done')
 
     def format(self,x):
-        return '%s over %s | %s (%s)%s' % (x[0],x[1],x[2],x[3],' +' if x[4] else '')
+        return '%s over %s | %s (%s)%s %s' % (x[0],x[1],x[2],x[3],' +' if x[4] else '', x[5])
 
 
 
 app = webapp2.WSGIApplication([ ('/', MainPage),
                                 ('/standings', GetStandings), 
-                                ('/email',EmailBets)
+                                ('/email',EmailBets),
+                                ('/today', TodaysBets)
                             ], 
                             debug=True)

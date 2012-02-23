@@ -1,11 +1,48 @@
-<h2>Bets</h2>
-<table>
-{% for i in bets %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>probet</title>
+<link rel="stylesheet" href="/static/style.css" type="text/css" />
+
+</head>
+<body>
+<div class="container">
+
+<div class="row">
+<div class="span3">&nbsp;</div>
+<div class="span6">
+
+{% if odds %}
+<h1>All Picks:</h1>
+<table class="table table-bordered">
+    <thead><th>Favourite</th><th>Underdog</th><th>&Delta; Standings</th><th>&Delta; Odds</th><th>Beat the Spread?</th><th>O/U</th></thead>
+    <tbody>
+{% for i in odds %}
     <tr>
-        {% for j in i %}
+        {% for j in i[:] %}
         <td>{{ j }}</td>
         {% endfor %}
     </tr>
 
 {% endfor %}
+</tbody>
 </table>
+{% else %}
+<h1>No good bets for today.</h1>
+{% endif %}
+<table class="table">
+{% for k,team in teams.items() %}
+<tr><td>
+    {{ team.__dict__ }}
+</td></tr>
+{% endfor %}
+</table>
+</div>
+<div class="span3"></div>
+</div>
+</div>
+
+</body>
+</html>
