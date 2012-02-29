@@ -6,6 +6,8 @@ from bs4.element import NavigableString
 import math
 from google.appengine.api import memcache
 import re
+import datetime
+from google.appengine.ext import db
 
 def getTeams(debug=False, save=False):
     #get standings and return soup    
@@ -39,6 +41,8 @@ def parseProline(response):
     #proline can't code HTML
     row = re.compile('.*<tr class="(even|odd)">', re.M | re.S )
     end = re.compile('.*</tr>', re.M | re.S)
+    table = re.compile('.*<tbody', re.M | re.S )
+    table_end = re.compile('.*</table>', re.M | re.S)
     test = re.compile('.*<html>', re.M | re.S )
 
 
@@ -46,6 +50,27 @@ def parseProline(response):
     hand = ''
     dump = ''
     for line in response:
+        if scoop:
+            if table_end.match(line):
+                scoop = False
+                #drop in string
+                dump += hand
+                hand = ''
+            else:
+                #build string
+                hand += line
+        else:
+            if table.match(line):
+                scoop = True
+
+    table = dump
+
+    return table
+
+    scoop = False
+    hand = ''
+    dump = ''
+    for line in table:
         if scoop:
             if end.match(line):
                 scoop = False
@@ -58,6 +83,8 @@ def parseProline(response):
         else:
             if row.match(line):
                 scoop = True
+    
+    
     return dump
 
 def translate(x):
@@ -197,6 +224,7 @@ def parseOdds(soup):
             if len(tds) > 5:
                 #first row had few items     
                 #row = [i.contents for i in tds]   #whole row stripped
+
                 clean = []
                 clean.append(tds[1].b.string)
                 clean.append(tds[2].string.strip())
@@ -211,6 +239,8 @@ def parseOdds(soup):
                 clean.append(tds[14].b.string)
                 clean.append(tds[15].b.string)
                 clean.append(tds[16].b.string)
+                clean.append(date)
+                clean.append(event_list)
 
                 # print 'wtf'
                 # #print 'WTF',row[3]
@@ -227,6 +257,14 @@ def parseOdds(soup):
                 # print '*'+clean
                 
                 ODDS.append(clean)
+
+            else:
+                date = tds[0].span.string
+                #list #
+                event_list = tds[0].contents[2].strip()[-4:]
+                #print event_list
+
+
     memcache.set('odds',ODDS,60*60*6)
     return ODDS
 
@@ -249,13 +287,34 @@ def printTeams(teams):
     for x in sorted(standings): #not really sorted
         print x
 
-class Wager(object):
+
+class Wager(db.Model):
+    game = db.IntegerProperty()
+    time = db.StringProperty()
+    sport = db.StringProperty()
+    visitor = db.StringProperty()
+    home = db.StringProperty()
+    v_plus = db.FloatProperty()
+    v = db.FloatProperty()
+    tie = db.FloatProperty()
+    h = db.FloatProperty()
+    h_plus = db.FloatProperty()
+    over = db.FloatProperty()
+    over_under = db.FloatProperty()
+    under = db.FloatProperty()
+    date = db.StringProperty()
+    event_list = db.IntegerProperty()
+
+
+class create_Wager(object):
+
+
     def __init__(self,data, bettor):
-        self.game = data[0]
+        self.game = int(data[0])
         self.time = data[1]
-        #self.sport = data[2]
-        self.visitor = data[3]
-        self.home = data[4]
+        self.sport = data[2]
+        self.visitor = data[3].strip()
+        self.home = data[4].strip()
         self.v_plus = float(data[5])
         self.v = float(data[6])
         self.tie = float(data[7])
@@ -264,6 +323,8 @@ class Wager(object):
         self.over = float(data[10])
         self.over_under = float(data[11])
         self.under = float(data[12])
+        self.date = data[13].strip()
+        self.list = int(data[14])
 
         self.bettor = bettor   #need to get teams from probet object
         teams = self.bettor.teams
@@ -281,6 +342,24 @@ class Wager(object):
 
         self.plus = self.determinePlus(self.favourite, self.dog)
         self.bet_over_under = self.determineOverUnder()
+
+        #store database object:
+        e = Wager(game=self.game, time=self.time, 
+            sport = self.sport,
+            visitor = self.visitor,
+            home = self.home,
+            v_plus = self.v_plus,
+            v = self.v,
+            tie = self.tie,
+            h = self.h,
+            h_plus = self.h_plus,
+            over = self.over,
+            over_under = self.over_under,
+            under = self.under,
+            date = self.date,
+            event_list = self.list
+        )
+        e.put()
 
     def __repr__(self):
         return '%s is %s points ahead of %s and is favoured by %s %s' % (self.favourite.name, int(self.point_spread), self.dog.name, self.odd_spread, '+' if self.plus else '')
@@ -349,11 +428,11 @@ class Wager(object):
 class Probet(object):
     def __init__(self):
         #set up the probet instance
-        self.wagers = memcache.get('wagers')
-
+        #self.wagers = memcache.get('wagers')
+        self.wagers = None
         if not self.wagers:
 
-            self.odds = memcache.get('odds')
+            self.odds = None#memcache.get('odds')
             if not self.odds: self.odds = parseOdds(getOdds())
 
             self.teams = memcache.get('teams')
@@ -362,9 +441,11 @@ class Probet(object):
             self.wagers = []
 
             for game in self.odds:
-                self.wagers.append(Wager(game, self))
+                self.wagers.append(create_Wager(game, self))
 
             self.wagers.sort(cmp=self.sortWagers)
+            for w in self.wagers:
+                pass#w.put()
             memcache.set('wagers', self.wagers, 60*60*6)
 
     def getTeams(self):
