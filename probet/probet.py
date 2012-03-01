@@ -250,7 +250,8 @@ def parseOdds(soup):
                 else:
                     ODDS.append(clean)
 
-            else:
+            elif len(tds) == 5 and tds[0].span:
+                #get date from rows, (wager cuttoff rows also have 5 columns, but no span)
                 date = tds[0].span.string
                 event_list = int(tds[0].contents[2].strip()[-4:])
                 
