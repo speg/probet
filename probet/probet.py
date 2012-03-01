@@ -214,11 +214,12 @@ def parseStandings(soup):
 def parseOdds(soup):
     table = soup.findAll('tr')
     ODDS = []
-    
+    old = []
+    known = []
 
     for i in table:
         if isinstance(i, NavigableString):
-            print 'S'
+            pass
         else:
             tds = i.findAll('td')
             if len(tds) > 5:
@@ -226,7 +227,7 @@ def parseOdds(soup):
                 #row = [i.contents for i in tds]   #whole row stripped
 
                 clean = []
-                clean.append(tds[1].b.string)
+                clean.append(int(tds[1].b.string))
                 clean.append(tds[2].string.strip())
                 clean.append(tds[3].b.string.strip())
                 clean.append(tds[4].b.string)
@@ -241,32 +242,25 @@ def parseOdds(soup):
                 clean.append(tds[16].b.string)
                 clean.append(date)
                 clean.append(event_list)
-
-                # print 'wtf'
-                # #print 'WTF',row[3]
-                # for i in row:
-                #         print '*',i
-                #         strings = []
-                #         for s in i:
-                #             strings.append(s)
-
-                #         if len(strings) > 1:
-                #             clean.append(strings[1])
-                #         elif len(strings) == 1:
-                #             clean.append(strings[0])
-                # print '*'+clean
                 
-                ODDS.append(clean)
+
+                if int(clean[0]) in known:
+                    #do not add this
+                    old.append(clean)
+                else:
+                    ODDS.append(clean)
 
             else:
                 date = tds[0].span.string
-                #list #
-                event_list = tds[0].contents[2].strip()[-4:]
-                #print event_list
+                event_list = int(tds[0].contents[2].strip()[-4:])
+                
+                #get a list of previously recorded games
+                r  = Wager.all()
+                r.filter('event_list =',event_list)
+                known_list = r.fetch(99)
+                known = [g.game for g in known_list]
 
-
-    memcache.set('odds',ODDS,60*60*6)
-    return ODDS
+    return (ODDS, old)
 
 def printOdds(odds):
     #pretty print of odds table
@@ -308,8 +302,7 @@ class Wager(db.Model):
 
 class create_Wager(object):
 
-
-    def __init__(self,data, bettor):
+    def __init__(self,data, bettor, save=False):
         self.game = int(data[0])
         self.time = data[1]
         self.sport = data[2]
@@ -343,23 +336,26 @@ class create_Wager(object):
         self.plus = self.determinePlus(self.favourite, self.dog)
         self.bet_over_under = self.determineOverUnder()
 
+        
         #store database object:
-        e = Wager(game=self.game, time=self.time, 
-            sport = self.sport,
-            visitor = self.visitor,
-            home = self.home,
-            v_plus = self.v_plus,
-            v = self.v,
-            tie = self.tie,
-            h = self.h,
-            h_plus = self.h_plus,
-            over = self.over,
-            over_under = self.over_under,
-            under = self.under,
-            date = self.date,
-            event_list = self.list
-        )
-        e.put()
+        if save:
+            e = Wager(game=self.game, time=self.time, 
+                sport = self.sport,
+                visitor = self.visitor,
+                home = self.home,
+                v_plus = self.v_plus,
+                v = self.v,
+                tie = self.tie,
+                h = self.h,
+                h_plus = self.h_plus,
+                over = self.over,
+                over_under = self.over_under,
+                under = self.under,
+                date = self.date,
+                event_list = self.list
+            )
+            e.put()
+
 
     def __repr__(self):
         return '%s is %s points ahead of %s and is favoured by %s %s' % (self.favourite.name, int(self.point_spread), self.dog.name, self.odd_spread, '+' if self.plus else '')
@@ -428,24 +424,25 @@ class create_Wager(object):
 class Probet(object):
     def __init__(self):
         #set up the probet instance
-        #self.wagers = memcache.get('wagers')
-        self.wagers = None
+        self.wagers = memcache.get('wagers')
+        #self.wagers = None
         if not self.wagers:
 
-            self.odds = None#memcache.get('odds')
-            if not self.odds: self.odds = parseOdds(getOdds())
-
+            self.new, self.old = parseOdds(getOdds())
+            
             self.teams = memcache.get('teams')
             if not self.teams: self.teams = parseStandings(getTeams())
            
             self.wagers = []
 
-            for game in self.odds:
+            for game in self.new:
+                #save new games to the datastore
+                self.wagers.append(create_Wager(game, self, True))
+            for game in self.old:
                 self.wagers.append(create_Wager(game, self))
 
             self.wagers.sort(cmp=self.sortWagers)
-            for w in self.wagers:
-                pass#w.put()
+
             memcache.set('wagers', self.wagers, 60*60*6)
 
     def getTeams(self):
@@ -457,7 +454,7 @@ class Probet(object):
         #top: number of wagers to get
         #risk: level of risk willing to take
 
-        return [[wager.favourite.nick, wager.dog.nick, int(wager.point_spread),wager.odd_spread, wager.plus, wager.bet_over_under] for wager in self.wagers[:top] if self.risk(wager,risk)]
+        return [[wager.date, str(wager.game) + (' H' if wager.favourite.nick == wager.home else ' V'), wager.favourite.nick, wager.dog.nick, int(wager.point_spread),wager.odd_spread, wager.plus, wager.bet_over_under] for wager in self.wagers[:top] if self.risk(wager,risk)]
 
     def risk(self,wager,risk):
         if risk == 0:
@@ -470,7 +467,7 @@ class Probet(object):
                 return True
 
         elif risk == 5:
-            #everything
+            #all the things!
             return True
 
         return False

@@ -10,22 +10,19 @@
 <body>
 <div class="container">
 <div class="row">
-<div class="span2">&nbsp;</div>
-<div class="span8">
+<div class="span8 offset2">
     <div class="hero-unit">
     <h1>Probet<small>&nbsp;winning one game at a time</small></h1>
     </div>
 </div>
-<div class="span2"></div>
 
 <div class="row">
-<div class="span3">&nbsp;</div>
-<div class="span6">
+<div class="span10 offset1">
 
 {% if odds %}
 <h1>Today's Picks:</h1>
 <table class="table table-bordered">
-    <thead><th>Favourite</th><th>Underdog</th><th>&Delta; Standings</th><th>&Delta; Odds</th><th>Beat the Spread?</th><th>O/U</th></thead>
+    <thead><th>Date</th><th>Game</th><th>Favourite</th><th>Underdog</th><th>&Delta; Standings</th><th>&Delta; Odds</th><th>Beat the Spread?</th><th>O/U</th></thead>
     <tbody>
 {% for i in odds %}
     <tr>
@@ -42,7 +39,6 @@
 {% endif %}
 <a href='/today'>View All</a>
 </div>
-<div class="span3"></div>
 </div>
 </div>
 

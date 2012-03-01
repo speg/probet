@@ -64,7 +64,7 @@ class EmailBets(webapp2.RequestHandler):
               to="Steve <steve@speg.com>",
               subject="Today's Picks",
               body="""
-Good monring Steve!
+Good morning Steve!
 
 We've got some picks for you today!
 
