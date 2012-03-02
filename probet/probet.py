@@ -299,6 +299,7 @@ class Wager(db.Model):
     under = db.FloatProperty()
     date = db.StringProperty()
     event_list = db.IntegerProperty()
+    result = db.StringProperty()
 
 
 class create_Wager(object):
@@ -482,5 +483,71 @@ class Probet(object):
         else:
             return int(y.point_spread - x.point_spread)
 
+    def update_results(self):
+        results = memcache.get('results')
+        if not results:
+            print 'im in here'
+            url = 'http://proline.olg.ca/prolineEvents.do'
+            form = {'selectedSportId':'all',
+            'selectedTimeTab':'results',
+            'language':''
+            }
+            data = urllib.urlencode(form)
+            req = urllib2.Request(url, data)
+            response = urllib2.urlopen(req)
+            results = response.read()
+            memcache.set('results',results,3600)
+        soup = BeautifulSoup(results)
+        tables = soup.findAll('table')
+        #print tables[11]   
+        rows = tables[11].findAll('tr')
+        #print rows
+        r = []
+        for row in rows:
+            cells = row.findAll('td')
+            #print len(cells),cells
+            if len(cells) == 5:
+                event_list = int(cells[0].contents[2].strip()[-4:])
+                print event_list
+                w = Wager.all()
+                w.filter('event_list =', event_list)
+                w.filter('result =', None)
+                r = w.fetch(99)
+                print r
+                print [w.game for w in r]
+            elif len(cells) == 17:
+                game = int(cells[1].string.strip())
+                vis = cells[9].string.strip()
+                tie = cells[10].string.strip()
+                home = cells[11].string.strip()
+                over = cells[14].string.strip()
+                under = cells[16].string.strip()
+                print game, vis, tie, home, over, under, vis == ''
+                #if game in [w.game for w in r]:
+                for w in r:
+                    if w.game == game:
+                        if tie is not '':
+                            winner = 'V' if home == '' else 'H'
+                        else:
+                            if home == '' and vis == '':
+                                winner = 'T'
+                            else:
+                                winner = 'V' if home == '' else 'H'
+                        
+                        tied = '-' if tie == '' else 'T'
+                        if over == '' and under == '':
+                            O = '-'
+                        else:
+                            O = 'O' if under == '' else 'U'
+                        
+                        plus = '-' if cells[8].string.strip() == '' and cells[12].string.strip() == '' else '+'
+
+                        result = tied+winner+plus+O
+                        print 'game ',game, 'is ready to be updated with:',result
+                        w.result = result
+                        w.put()
 
 
+
+
+                    

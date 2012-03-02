@@ -8,6 +8,11 @@ import bs4
 from bs4 import BeautifulSoup
 from google.appengine.api import urlfetch, mail
 from probet import Probet
+from BeautifulSoup import BeautifulSoup
+import urllib2
+import urllib
+from google.appengine.api import memcache
+
 
 jinja_environment = jinja2.Environment(
     loader=jinja2.FileSystemLoader(os.path.dirname(__file__)))
@@ -16,7 +21,7 @@ class MainPage(webapp2.RequestHandler):
     def get(self):
         probet = Probet()
         template = jinja_environment.get_template('index.html')
-        template_values = {'odds': probet.getWagers(3,1)}
+        template_values = {'odds': probet.getWagers(None,0)}
         self.response.out.write(template.render(template_values))
 
 
@@ -55,6 +60,15 @@ class ViewAll(webapp2.RequestHandler):
         probet = Probet()
         bets = probet.getWagers(risk=5)
 
+class Results(webapp2.RequestHandler):
+    def get(self):
+        probet = Probet()
+        probet.update_results()
+        self.response.out.write('done')
+
+
+
+
 class EmailBets(webapp2.RequestHandler):
     def get(self):
         probet = Probet()
@@ -85,6 +99,7 @@ Good luck!
 app = webapp2.WSGIApplication([ ('/', MainPage),
                                 ('/standings', GetStandings), 
                                 ('/email',EmailBets),
-                                ('/today', TodaysBets)
+                                ('/today', TodaysBets),
+                                ('/results', Results)
                             ], 
                             debug=True)

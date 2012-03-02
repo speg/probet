@@ -3,3 +3,7 @@ cron:
   url: /email
   schedule: every day 06:55
   timezone: America/Montreal
+- description: daily results
+  url: /results
+  schedule: every day 06:50
+  timezone: America/Montreal
